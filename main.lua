@@ -32,6 +32,7 @@ local Window = Rayfield:CreateWindow({
 
 local ESPTab = Window:CreateTab("Player ESP", 4483362458)
 local CombatTab = Window:CreateTab("Combat", 4483362458)
+local AntisTab = Window:CreateTab("Antis", 4483362458)
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
 CombatTab:CreateSection("Combat Features")
@@ -41,6 +42,7 @@ CombatTab:CreateSection("Combat Features")
 --==================================================
 
 local GREEN = Color3.fromRGB(0, 255, 110)
+local DARK = Color3.fromRGB(12, 17, 20)
 
 local Config = {
     PlayerHighlight = false,
@@ -48,6 +50,7 @@ local Config = {
     Nametags = false,
     Username = true,
     HeadHighlight = false,
+    AntiFling = false,
     OutlineTransparency = 0
 }
 
@@ -275,6 +278,52 @@ track(Players.PlayerRemoving:Connect(function(player)
 end))
 
 --==================================================
+-- ANTI-FLING
+--==================================================
+
+local FLING_SPEED_THRESHOLD = 120
+local FLING_ANGULAR_THRESHOLD = 80
+
+local function antiFling()
+
+    if not Config.AntiFling then
+        return
+    end
+
+    local character = LocalPlayer.Character
+    if not character then return end
+
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local velocity = root.AssemblyLinearVelocity
+
+    local horizontalSpeed = Vector3.new(
+        velocity.X,
+        0,
+        velocity.Z
+    ).Magnitude
+
+    -- Counter extreme horizontal launches
+    if horizontalSpeed > FLING_SPEED_THRESHOLD then
+
+        root.AssemblyLinearVelocity = Vector3.new(
+            0,
+            math.clamp(velocity.Y, -80, 80),
+            0
+        )
+
+    end
+
+    -- Counter extreme spinning
+    if root.AssemblyAngularVelocity.Magnitude > FLING_ANGULAR_THRESHOLD then
+
+        root.AssemblyAngularVelocity = Vector3.zero
+
+    end
+end
+
+--==================================================
 -- DISPLAY-NAME REFRESH
 --==================================================
 
@@ -283,6 +332,8 @@ local elapsed = 0
 track(RunService.Heartbeat:Connect(function(dt)
 
     if Unloaded then return end
+
+    antiFling()
 
     elapsed += dt
 
@@ -295,8 +346,10 @@ track(RunService.Heartbeat:Connect(function(dt)
     for player, data in pairs(Visuals) do
 
         if data.Tag and data.Tag.Username then
+
             data.Tag.Username.Text = player.DisplayName
             data.Tag.Username.Visible = Config.Username
+
         end
 
     end
@@ -411,6 +464,23 @@ ESPTab:CreateSlider({
             end
 
         end
+    end
+})
+
+--==================================================
+-- ANTIS TAB
+--==================================================
+
+AntisTab:CreateSection("Movement Protection")
+
+AntisTab:CreateToggle({
+    Name = "Anti-Fling",
+    CurrentValue = false,
+
+    Callback = function(value)
+
+        Config.AntiFling = value
+
     end
 })
 
