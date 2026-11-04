@@ -1,4 +1,3 @@
-
 --==================================================
 -- PLAYER TOOLS | RAYFIELD
 --==================================================
@@ -42,14 +41,12 @@ CombatTab:CreateSection("Combat Features")
 --==================================================
 
 local GREEN = Color3.fromRGB(0, 255, 110)
-local DARK = Color3.fromRGB(12, 17, 20)
 
 local Config = {
     PlayerHighlight = false,
+    BoxESP = false,
     Nametags = false,
     Username = true,
-    Distance = true,
-    Health = true,
     HeadHighlight = false,
     OutlineTransparency = 0
 }
@@ -80,127 +77,64 @@ local function clearPlayer(player)
         data.Head:Destroy()
     end
 
+    if data.Box then
+        data.Box:Destroy()
+    end
+
     if data.Tag and data.Tag.Billboard then
         data.Tag.Billboard:Destroy()
+
+        local character = player.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+        if humanoid then
+            humanoid.DisplayDistanceType =
+                Enum.HumanoidDisplayDistanceType.Viewer
+        end
     end
 
     Visuals[player] = nil
 end
 
 --==================================================
--- NAMETAG CREATOR
+-- SIMPLE DISPLAY-NAME TAG
 --==================================================
 
 local function createNametag(player, character, head)
 
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        humanoid.DisplayDistanceType =
+            Enum.HumanoidDisplayDistanceType.None
+    end
+
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "PlayerNametag"
     billboard.Adornee = head
-    billboard.Size = UDim2.fromOffset(145, 54)
-    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.Size = UDim2.fromOffset(160, 25)
+    billboard.StudsOffset = Vector3.new(0, 2.7, 0)
     billboard.AlwaysOnTop = true
     billboard.LightInfluence = 0
     billboard.MaxDistance = 250
     billboard.Parent = character
 
-    -- Main container
-    local frame = Instance.new("Frame")
-    frame.Name = "Container"
-    frame.Size = UDim2.fromScale(1, 1)
-    frame.BackgroundColor3 = DARK
-    frame.BackgroundTransparency = 0.08
-    frame.BorderSizePixel = 0
-    frame.Parent = billboard
-
-    -- Rounded corners
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 7)
-    corner.Parent = frame
-
-    -- Neon border
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = GREEN
-    stroke.Thickness = 1.3
-    stroke.Transparency = 0.1
-    stroke.Parent = frame
-
-    -- Gradient
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(
-            0,
-            Color3.fromRGB(20, 32, 29)
-        ),
-        ColorSequenceKeypoint.new(
-            1,
-            Color3.fromRGB(8, 11, 15)
-        )
-    })
-    gradient.Rotation = 90
-    gradient.Parent = frame
-
-    -- Accent line
-    local accent = Instance.new("Frame")
-    accent.Size = UDim2.new(0.35, 0, 0, 2)
-    accent.Position = UDim2.new(0.325, 0, 0, 0)
-    accent.BackgroundColor3 = GREEN
-    accent.BorderSizePixel = 0
-    accent.Parent = frame
-
-    -- Label helper
-    local function makeLabel(name, position, height)
-        local label = Instance.new("TextLabel")
-        label.Name = name
-        label.Position = position
-        label.Size = UDim2.new(1, -10, 0, height)
-        label.BackgroundTransparency = 1
-        label.TextColor3 = Color3.new(1, 1, 1)
-        label.TextSize = 10
-        label.Font = Enum.Font.GothamMedium
-        label.Parent = frame
-
-        return label
-    end
-
-    -- Username
-    local username = makeLabel(
-        "Username",
-        UDim2.fromOffset(5, 3),
-        19
-    )
-
+    local username = Instance.new("TextLabel")
+    username.Name = "Username"
+    username.BackgroundTransparency = 1
+    username.Size = UDim2.fromScale(1, 1)
+    username.Font = Enum.Font.GothamBold
     username.Text = player.DisplayName
     username.TextColor3 = GREEN
-    username.TextSize = 12
-    username.Font = Enum.Font.GothamBold
+    username.TextSize = 14
+    username.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    username.TextStrokeTransparency = 0.25
     username.TextTruncate = Enum.TextTruncate.AtEnd
-    username.Visible = Config.Username
-
-    -- Distance
-    local distance = makeLabel(
-        "Distance",
-        UDim2.fromOffset(5, 24),
-        13
-    )
-
-    distance.TextColor3 = Color3.fromRGB(190, 200, 200)
-    distance.Visible = Config.Distance
-
-    -- Health
-    local health = makeLabel(
-        "Health",
-        UDim2.fromOffset(5, 38),
-        13
-    )
-
-    health.TextColor3 = GREEN
-    health.Visible = Config.Health
+    username.Parent = billboard
 
     return {
         Billboard = billboard,
-        Username = username,
-        Distance = distance,
-        Health = health
+        Username = username
     }
 end
 
@@ -228,6 +162,23 @@ local function applyPlayer(player)
 
     local data = {}
     Visuals[player] = data
+
+    -- Fancy 3D bounding box
+    if Config.BoxESP then
+
+        local box = Instance.new("SelectionBox")
+        box.Name = "PlayerBoxESP"
+        box.Adornee = character
+        box.Color3 = GREEN
+        box.SurfaceColor3 = GREEN
+        box.SurfaceTransparency = 1
+        box.LineThickness = 0.045
+        box.Transparency = 0
+        box.AlwaysOnTop = true
+        box.Parent = character
+
+        data.Box = box
+    end
 
     -- Full body highlight
     if Config.PlayerHighlight then
@@ -324,7 +275,7 @@ track(Players.PlayerRemoving:Connect(function(player)
 end))
 
 --==================================================
--- DISTANCE / HEALTH UPDATER
+-- DISPLAY-NAME REFRESH
 --==================================================
 
 local elapsed = 0
@@ -335,51 +286,19 @@ track(RunService.Heartbeat:Connect(function(dt)
 
     elapsed += dt
 
-    if elapsed < 0.1 then
+    if elapsed < 0.25 then
         return
     end
 
     elapsed = 0
 
-    local myCharacter = LocalPlayer.Character
-
-    local myRoot = myCharacter
-        and myCharacter:FindFirstChild("HumanoidRootPart")
-
     for player, data in pairs(Visuals) do
 
-        local character = player.Character
-
-        if character and data.Tag then
-
-            local root = character:FindFirstChild("HumanoidRootPart")
-            local humanoid = character:FindFirstChildOfClass("Humanoid")
-
+        if data.Tag and data.Tag.Username then
+            data.Tag.Username.Text = player.DisplayName
             data.Tag.Username.Visible = Config.Username
-            data.Tag.Distance.Visible = Config.Distance
-            data.Tag.Health.Visible = Config.Health
-
-            if Config.Distance and root and myRoot then
-
-                local distance = (
-                    myRoot.Position - root.Position
-                ).Magnitude
-
-                data.Tag.Distance.Text = string.format(
-                    "%d studs",
-                    distance
-                )
-            end
-
-            if Config.Health and humanoid then
-
-                data.Tag.Health.Text = string.format(
-                    "HP: %d / %d",
-                    humanoid.Health,
-                    humanoid.MaxHealth
-                )
-            end
         end
+
     end
 end))
 
@@ -396,6 +315,18 @@ ESPTab:CreateToggle({
     Callback = function(value)
 
         Config.PlayerHighlight = value
+        refreshAll()
+
+    end
+})
+
+ESPTab:CreateToggle({
+    Name = "Fancy Box ESP",
+    CurrentValue = false,
+
+    Callback = function(value)
+
+        Config.BoxESP = value
         refreshAll()
 
     end
@@ -420,7 +351,7 @@ ESPTab:CreateToggle({
 ESPTab:CreateSection("Nametags")
 
 ESPTab:CreateToggle({
-    Name = "Fancy Nametags",
+    Name = "Display Name",
     CurrentValue = false,
 
     Callback = function(value)
@@ -432,7 +363,7 @@ ESPTab:CreateToggle({
 })
 
 ESPTab:CreateToggle({
-    Name = "Display Username",
+    Name = "Show Display Name Text",
     CurrentValue = true,
 
     Callback = function(value)
@@ -440,43 +371,11 @@ ESPTab:CreateToggle({
         Config.Username = value
 
         for _, data in pairs(Visuals) do
-            if data.Tag then
+
+            if data.Tag and data.Tag.Username then
                 data.Tag.Username.Visible = value
             end
-        end
 
-    end
-})
-
-ESPTab:CreateToggle({
-    Name = "Display Distance",
-    CurrentValue = true,
-
-    Callback = function(value)
-
-        Config.Distance = value
-
-        for _, data in pairs(Visuals) do
-            if data.Tag then
-                data.Tag.Distance.Visible = value
-            end
-        end
-
-    end
-})
-
-ESPTab:CreateToggle({
-    Name = "Display Health",
-    CurrentValue = true,
-
-    Callback = function(value)
-
-        Config.Health = value
-
-        for _, data in pairs(Visuals) do
-            if data.Tag then
-                data.Tag.Health.Visible = value
-            end
         end
 
     end
@@ -569,6 +468,7 @@ SettingsTab:CreateButton({
 
                     if object.Name == "PlayerHighlight"
                     or object.Name == "HeadHighlight"
+                    or object.Name == "PlayerBoxESP"
                     or object.Name == "PlayerNametag" then
 
                         object:Destroy()
